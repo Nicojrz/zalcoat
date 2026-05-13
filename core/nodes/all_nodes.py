@@ -62,6 +62,8 @@ class GaussianBlurNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         img = inputs[0]
         k = self.params["kernel_size"]
         k = k if k % 2 == 1 else k + 1
@@ -78,6 +80,8 @@ class MedianBlurNode(BaseNode):
         return [NodeParam("kernel_size", "Kernel size", "int", 5, 1, 31, 2)]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         k = self.params["kernel_size"]
         k = k if k % 2 == 1 else k + 1
         return cv2.medianBlur(inputs[0], k)
@@ -97,6 +101,8 @@ class BilateralFilterNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         p = self.params
         return cv2.bilateralFilter(inputs[0], p["d"], p["sigma_color"], p["sigma_space"])
 
@@ -111,6 +117,8 @@ class SharpenNode(BaseNode):
         return [NodeParam("strength", "Strength", "float", 1.0, 0.0, 5.0, 0.1)]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         s = self.params["strength"]
         kernel = np.array([
             [0, -s, 0],
@@ -133,6 +141,8 @@ class SobelNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
         k = self.params["ksize"]
         axis = self.params["axis"]
@@ -158,6 +168,8 @@ class LaplacianNode(BaseNode):
         return [NodeParam("ksize", "Kernel size", "int", 3, 1, 31, 2)]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
         result = cv2.Laplacian(gray, cv2.CV_64F, ksize=self.params["ksize"])
         result = cv2.normalize(np.abs(result), None, 0, 255, cv2.NORM_MINMAX)
@@ -181,6 +193,8 @@ class BrightnessContrastNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         return cv2.convertScaleAbs(inputs[0], alpha=self.params["alpha"], beta=self.params["beta"])
 
 
@@ -194,6 +208,8 @@ class GammaCorrectionNode(BaseNode):
         return [NodeParam("gamma", "Gamma", "float", 1.0, 0.1, 5.0, 0.05)]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         gamma = self.params["gamma"]
         lut = np.array([((i / 255.0) ** (1.0 / gamma)) * 255 for i in range(256)], dtype=np.uint8)
         return cv2.LUT(inputs[0], lut)
@@ -213,6 +229,8 @@ class ThresholdNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
         method = self.params["method"]
         t = self.params["thresh"]
@@ -241,6 +259,8 @@ class HistogramEqualizationNode(BaseNode):
         return [NodeParam("method", "Method", "choice", "standard", choices=["standard", "clahe"])]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         img = inputs[0]
         if self.params["method"] == "clahe":
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -276,6 +296,8 @@ class MorphologyNode(BaseNode):
         ]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         k = self.params["kernel_size"]
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
         ops = {
@@ -305,6 +327,8 @@ class GrayscaleNode(BaseNode):
         return []
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY)
         return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -320,6 +344,8 @@ class FlipNode(BaseNode):
                           choices=["horizontal", "vertical", "both"])]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         axis_map = {"horizontal": 1, "vertical": 0, "both": -1}
         return cv2.flip(inputs[0], axis_map[self.params["axis"]])
 
@@ -334,6 +360,8 @@ class RotateNode(BaseNode):
         return [NodeParam("angle", "Angle (°)", "float", 0.0, -180.0, 180.0, 1.0)]
 
     def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
         img = inputs[0]
         h, w = img.shape[:2]
         M = cv2.getRotationMatrix2D((w / 2, h / 2), self.params["angle"], 1.0)

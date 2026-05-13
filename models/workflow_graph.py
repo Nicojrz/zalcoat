@@ -72,8 +72,15 @@ class WorkflowGraph:
 
     def _inputs_for(self, node_id: str) -> list[np.ndarray]:
         sources = [e.source_id for e in self.edges if e.target_id == node_id]
-        return [self.nodes[sid]._cache for sid in sources
+        inputs = [self.nodes[sid]._cache for sid in sources
                 if sid in self.nodes and self.nodes[sid]._cache is not None]
+        if sources and not inputs:
+            print(f"[WorkflowGraph] Warning: {node_id} has {len(sources)} source(s) but got {len(inputs)} valid input(s)")
+            for sid in sources:
+                if sid in self.nodes:
+                    cache_status = "None" if self.nodes[sid]._cache is None else f"shape={self.nodes[sid]._cache.shape}"
+                    print(f"  - Source {sid}: _cache={cache_status}")
+        return inputs
 
     def execute(self) -> dict[str, np.ndarray]:
         """Ejecuta todos los nodos en orden topológico. Retorna {node_id: output}."""
@@ -86,5 +93,9 @@ class WorkflowGraph:
                 output = node.get_output(inputs)
                 results[nid] = output
             except Exception as exc:
-                print(f"[WorkflowGraph] Error en nodo {nid}: {exc}")
+                import traceback
+                print(f"[WorkflowGraph] Error en nodo {nid} ({node.node_type}): {exc}")
+                print(traceback.format_exc())
+                # Retorna una imagen negra como fallback para no romper el flujo
+                results[nid] = np.zeros((256, 256, 3), dtype=np.uint8)
         return results
