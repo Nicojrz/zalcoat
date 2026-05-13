@@ -23,11 +23,11 @@ class PortItem(QGraphicsEllipseItem):
         self._update_style()
 
     def _update_style(self):
-        color = QColor("#5B6CFF") if self.is_output else QColor("#FF6B6B")
+        color = QColor("#606060") if self.is_output else QColor("#404040")
         if self._hovered:
             color = color.lighter(140)
         self.setBrush(QBrush(color))
-        self.setPen(QPen(QColor("#ffffff"), 1.5))
+        self.setPen(QPen(QColor("#E0E0E0"), 1.5))
 
     def hoverEnterEvent(self, event):
         self._hovered = True
@@ -129,8 +129,8 @@ class NodeItem(QGraphicsItem):
         painter.drawRoundedRect(QRectF(4, 4, NODE_W, NODE_H), 10, 10)
 
         # Cuerpo
-        painter.setBrush(QBrush(QColor("#2A2D3E")))
-        border_color = QColor(self.node.color) if self._selected else QColor("#3A3D52")
+        painter.setBrush(QBrush(QColor("#1A1A1A")))
+        border_color = QColor(self.node.color) if self._selected else QColor("#2C2C2C")
         painter.setPen(QPen(border_color, 2 if self._selected else 1))
         painter.drawRoundedRect(QRectF(0, 0, NODE_W, NODE_H), 10, 10)
 
@@ -155,7 +155,7 @@ class NodeItem(QGraphicsItem):
             self._paint_input_node_body(painter)
         else:
             # Subtitulo generico
-            painter.setPen(QPen(QColor("#8A8FAF")))
+            painter.setPen(QPen(QColor("#808080")))
             painter.setFont(QFont("Segoe UI", 7))
             painter.drawText(QRectF(10, HEADER_H + 4, NODE_W - 20, NODE_H - HEADER_H - 8),
                              Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
@@ -175,7 +175,7 @@ class NodeItem(QGraphicsItem):
             painter.drawPixmap(int(thumb_x), int(thumb_y), thumb)
             # Nombre del archivo
             filename = getattr(self.node, "filename", "imagen cargada")
-            painter.setPen(QPen(QColor("#CDD6F4")))
+            painter.setPen(QPen(QColor("#E0E0E0")))
             painter.setFont(QFont("Segoe UI", 7))
             painter.drawText(
                 QRectF(thumb_x + thumb.width() + 6, body_top, NODE_W - thumb_x - thumb.width() - 14, body_h),
@@ -184,7 +184,7 @@ class NodeItem(QGraphicsItem):
             )
         else:
             # Sin imagen: instruccion
-            painter.setPen(QPen(QColor("#6C7086")))
+            painter.setPen(QPen(QColor("#606060")))
             painter.setFont(QFont("Segoe UI", 7))
             painter.drawText(
                 QRectF(8, body_top, NODE_W - 16, body_h),

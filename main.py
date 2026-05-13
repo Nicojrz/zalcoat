@@ -10,15 +10,16 @@ from ui.main_window import MainWindow
 
 def apply_dark_palette(app: QApplication):
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor("#1A1B26"))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor("#CDD6F4"))
-    palette.setColor(QPalette.ColorRole.Base, QColor("#2A2D3E"))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#1E2030"))
-    palette.setColor(QPalette.ColorRole.Text, QColor("#CDD6F4"))
-    palette.setColor(QPalette.ColorRole.Button, QColor("#2A2D3E"))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#CDD6F4"))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor("#5B6CFF"))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+    # Monochromatic dark gray palette
+    palette.setColor(QPalette.ColorRole.Window, QColor("#0F0F0F"))        # Very dark background
+    palette.setColor(QPalette.ColorRole.WindowText, QColor("#E0E0E0"))    # Light gray text
+    palette.setColor(QPalette.ColorRole.Base, QColor("#1A1A1A"))          # Dark gray base
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#141414")) # Slightly darker alternate
+    palette.setColor(QPalette.ColorRole.Text, QColor("#E0E0E0"))          # Light gray text
+    palette.setColor(QPalette.ColorRole.Button, QColor("#1A1A1A"))        # Dark gray buttons
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#E0E0E0"))    # Light gray button text
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#404040"))     # Medium gray highlight
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF")) # White highlighted text
     app.setPalette(palette)
 
 def main():

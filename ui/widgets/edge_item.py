@@ -30,9 +30,9 @@ class EdgeItem(QGraphicsPathItem):
 
     def _update_style(self):
         if self._hovered:
-            pen = QPen(QColor("#FF6B6B"), 2.5)
+            pen = QPen(QColor("#A0A0A0"), 2.5)
         else:
-            pen = QPen(QColor("#5B8DDE"), 2)
+            pen = QPen(QColor("#606060"), 2)
         pen.setStyle(pen.style().SolidLine)
         self.setPen(pen)
 

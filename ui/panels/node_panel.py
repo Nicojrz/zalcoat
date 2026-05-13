@@ -13,18 +13,18 @@ class NodePanel(QWidget):
         super().__init__()
         self.setFixedWidth(200)
         self.setStyleSheet("""
-            QWidget { background: #1E2030; color: #CDD6F4; }
+            QWidget { background: #141414; color: #E0E0E0; }
             QLineEdit {
-                background: #2A2D3E; border: 1px solid #3A3D52;
-                border-radius: 6px; padding: 4px 8px; color: #CDD6F4;
+                background: #1A1A1A; border: 1px solid #2C2C2C;
+                border-radius: 6px; padding: 4px 8px; color: #E0E0E0;
             }
             QTreeWidget {
-                background: #1E2030; border: none; outline: none;
+                background: #141414; border: none; outline: none;
             }
             QTreeWidget::item { padding: 4px 6px; border-radius: 4px; }
-            QTreeWidget::item:hover { background: #2A2D3E; }
-            QTreeWidget::item:selected { background: #3A3D52; }
-            QTreeWidget::branch { background: #1E2030; }
+            QTreeWidget::item:hover { background: #1A1A1A; }
+            QTreeWidget::item:selected { background: #2C2C2C; }
+            QTreeWidget::branch { background: #141414; }
         """)
 
         layout = QVBoxLayout(self)

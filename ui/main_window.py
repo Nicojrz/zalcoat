@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Editor de Nodos PDI")
         self.resize(1400, 860)
-        self.setStyleSheet("background: #1A1B26; color: #CDD6F4;")
+        self.setStyleSheet("background: #0F0F0F; color: #E0E0E0;")
         self.setAcceptDrops(True)
 
         self.graph = WorkflowGraph()
@@ -40,14 +40,14 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._details)
         splitter.addWidget(self._preview)
         splitter.setSizes([200, 700, 220, 280])
-        splitter.setStyleSheet("QSplitter::handle { background: #2A2D3E; }")
+        splitter.setStyleSheet("QSplitter::handle { background: #1A1A1A; }")
         self.setCentralWidget(splitter)
 
         self._workflow_path: str | None = None
         self._build_toolbar()
 
         self._status = QStatusBar()
-        self._status.setStyleSheet("background: #13141F; color: #6C7086; font-size: 11px;")
+        self._status.setStyleSheet("background: #0A0A0A; color: #808080; font-size: 11px;")
         self.setStatusBar(self._status)
         self._status.showMessage(
             "El workflow se actualiza automáticamente  |  Doble clic en Input Image para cambiar imagen  |  Clic derecho en conexion para eliminarla  |  Ctrl+O para abrir imagen"
@@ -72,10 +72,10 @@ class MainWindow(QMainWindow):
         tb = QToolBar("Main")
         tb.setMovable(False)
         tb.setStyleSheet("""
-            QToolBar { background: #13141F; border-bottom: 1px solid #2A2D3E;
+            QToolBar { background: #0A0A0A; border-bottom: 1px solid #1A1A1A;
                        spacing: 4px; padding: 4px; }
-            QToolButton { color: #CDD6F4; padding: 4px 12px; border-radius: 4px; }
-            QToolButton:hover { background: #2A2D3E; }
+            QToolButton { color: #E0E0E0; padding: 4px 12px; border-radius: 4px; }
+            QToolButton:hover { background: #1A1A1A; }
         """)
         self.addToolBar(tb)
 

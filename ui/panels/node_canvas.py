@@ -29,7 +29,7 @@ class NodeCanvas(QGraphicsView):
         self._temp_edge: EdgeItem | None = None
 
         self._scene = QGraphicsScene()
-        self._scene.setBackgroundBrush(QColor("#1A1B26"))
+        self._scene.setBackgroundBrush(QColor("#0F0F0F"))
         self.setScene(self._scene)
 
         self.setRenderHint(self.renderHints().Antialiasing)
