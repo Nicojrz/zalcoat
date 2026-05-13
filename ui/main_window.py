@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, QPointF
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtGui import QAction, QKeySequence, QKeyEvent
 
 from ui.panels.node_canvas import NodeCanvas
 from ui.panels.node_panel import NodePanel
@@ -77,11 +77,9 @@ class MainWindow(QMainWindow):
         """)
         self.addToolBar(tb)
 
-        # Open image via File Dialog (Ctrl+O) - registered globally for keyboard shortcut
+        # Open image via File Dialog (Ctrl+O) - handled in keyPressEvent
         act_open = QAction("Abrir imagen", self)
-        act_open.setShortcut(QKeySequence.StandardKey.Open)
         act_open.triggered.connect(self._open_image_dialog)
-        self.addAction(act_open)  # Register globally
 
         # Run graph manually (Ctrl+Return) - registered globally for keyboard shortcut
         act_run = QAction("Ejecutar", self)
@@ -192,6 +190,13 @@ class MainWindow(QMainWindow):
     def _is_image_url(url: QUrl) -> bool:
         ext = os.path.splitext(url.toLocalFile())[1].lower()
         return ext in IMAGE_EXTS
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key.Key_O and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._open_image_dialog()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
     # ── Ejecucion del workflow ────────────────────────────
 
