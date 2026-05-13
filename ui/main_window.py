@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         # Timer para ejecutar el grafo con debounce (evita múltiples ejecuciones rápidas)
         self._exec_timer = QTimer()
         self._exec_timer.setSingleShot(True)
-        self._exec_timer.setInterval(300)  # Debounce de 300ms
+        self._exec_timer.setInterval(100)  # Reduced to 100ms for more responsive auto-refresh
         self._exec_timer.timeout.connect(self._run_graph)
 
         # Senales del canvas
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
         act_run.setShortcut("Ctrl+Return")
         act_run.triggered.connect(self._run_graph)
         self.addAction(act_run)  # Register globally
+        tb.addAction(act_run)  # Add to toolbar
 
         # Clear canvas
         act_clear = QAction("Limpiar", self)
@@ -196,7 +197,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_run(self):
         """Programa la ejecución del workflow con debounce.
-        Se ejecuta automáticamente 300ms después del último cambio."""
+        Se ejecuta automáticamente 100ms después del último cambio."""
         self._exec_timer.stop()  # Reinicia el timer
         self._exec_timer.start()
 
@@ -222,28 +223,22 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            print(f"[MainWindow] Executing graph with {len(self.graph.nodes)} nodes...")
             results = self.graph.execute()
             if not results:
-                print("[MainWindow] No results from graph execution")
                 self._preview.clear()
                 return
 
             # Mostrar la salida del OutputImageNode
             out = self._output_node()
             if out is None:
-                print("[MainWindow] No OutputImageNode found")
                 self._preview.clear()
                 return
             
             if out.node_id not in results:
-                print(f"[MainWindow] OutputImageNode {out.node_id} not in results")
-                print(f"[MainWindow] Available results: {list(results.keys())}")
                 self._preview.clear()
                 return
             
             output_img = results[out.node_id]
-            print(f"[MainWindow] Showing output image with shape: {output_img.shape if hasattr(output_img, 'shape') else 'unknown'}")
             self._preview.show_image(output_img)
             self._status.showMessage(f"✓ Procesado: {len(results)} nodo(s)")
 
