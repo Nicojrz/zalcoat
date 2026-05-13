@@ -48,12 +48,13 @@ class MainWindow(QMainWindow):
         self._status.setStyleSheet("background: #13141F; color: #6C7086; font-size: 11px;")
         self.setStatusBar(self._status)
         self._status.showMessage(
-            "Arrastra una imagen al canvas  |  Doble clic en Input Image para cambiar imagen  |  Clic derecho en conexion para eliminarla"
+            "El workflow se actualiza automáticamente  |  Doble clic en Input Image para cambiar imagen  |  Clic derecho en conexion para eliminarla  |  Ctrl+O para abrir imagen"
         )
 
+        # Timer para ejecutar el grafo con debounce (evita múltiples ejecuciones rápidas)
         self._exec_timer = QTimer()
         self._exec_timer.setSingleShot(True)
-        self._exec_timer.setInterval(300)
+        self._exec_timer.setInterval(300)  # Debounce de 300ms
         self._exec_timer.timeout.connect(self._run_graph)
 
         # Senales del canvas
@@ -76,25 +77,28 @@ class MainWindow(QMainWindow):
         """)
         self.addToolBar(tb)
 
+        # Open image via File Dialog (Ctrl+O) - registered globally for keyboard shortcut
         act_open = QAction("Abrir imagen", self)
         act_open.setShortcut(QKeySequence.StandardKey.Open)
         act_open.triggered.connect(self._open_image_dialog)
-        tb.addAction(act_open)
+        self.addAction(act_open)  # Register globally
 
-        tb.addSeparator()
-
+        # Run graph manually (Ctrl+Return) - registered globally for keyboard shortcut
         act_run = QAction("Ejecutar", self)
         act_run.setShortcut("Ctrl+Return")
         act_run.triggered.connect(self._run_graph)
-        tb.addAction(act_run)
+        self.addAction(act_run)  # Register globally
 
+        # Clear canvas
         act_clear = QAction("Limpiar", self)
         act_clear.triggered.connect(self._clear_canvas)
         tb.addAction(act_clear)
 
         tb.addSeparator()
 
-        act_fit = QAction("Centrar (F)", self)
+        # Fit view (F key)
+        act_fit = QAction("Centrar", self)
+        act_fit.setShortcut("F")
         act_fit.triggered.connect(self._canvas.fit_view)
         tb.addAction(act_fit)
 
@@ -191,6 +195,9 @@ class MainWindow(QMainWindow):
     # ── Ejecucion del workflow ────────────────────────────
 
     def _schedule_run(self):
+        """Programa la ejecución del workflow con debounce.
+        Se ejecuta automáticamente 300ms después del último cambio."""
+        self._exec_timer.stop()  # Reinicia el timer
         self._exec_timer.start()
 
     def _output_node(self) -> OutputImageNode | None:
@@ -238,7 +245,7 @@ class MainWindow(QMainWindow):
             output_img = results[out.node_id]
             print(f"[MainWindow] Showing output image with shape: {output_img.shape if hasattr(output_img, 'shape') else 'unknown'}")
             self._preview.show_image(output_img)
-            self._status.showMessage(f"Ejecutado: {len(results)} nodo(s) procesados")
+            self._status.showMessage(f"✓ Procesado: {len(results)} nodo(s)")
 
         except Exception as e:
             import traceback
