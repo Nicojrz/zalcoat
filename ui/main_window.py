@@ -1,3 +1,4 @@
+import json
 import os
 import cv2
 import numpy as np
@@ -21,7 +22,7 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp"}
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PDI Node Editor")
+        self.setWindowTitle("Editor de Nodos PDI")
         self.resize(1400, 860)
         self.setStyleSheet("background: #1A1B26; color: #CDD6F4;")
         self.setAcceptDrops(True)
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
         splitter.setStyleSheet("QSplitter::handle { background: #2A2D3E; }")
         self.setCentralWidget(splitter)
 
+        self._workflow_path: str | None = None
         self._build_toolbar()
 
         self._status = QStatusBar()
@@ -80,8 +82,25 @@ class MainWindow(QMainWindow):
         # Open image via File Dialog (Ctrl+O) - handled in keyPressEvent
         act_open = QAction("Abrir imagen", self)
         act_open.triggered.connect(self._open_image_dialog)
+        tb.addAction(act_open)
+        self.addAction(act_open)
 
-        # Run graph manually (Ctrl+Return) - registered globally for keyboard shortcut
+        # Workflow persistence
+        act_save = QAction("Guardar workflow", self)
+        act_save.setShortcut(QKeySequence.StandardKey.Save)
+        act_save.triggered.connect(self._save_workflow_dialog)
+        tb.addAction(act_save)
+        self.addAction(act_save)
+
+        act_load = QAction("Abrir workflow", self)
+        act_load.setShortcut("Ctrl+Shift+O")
+        act_load.triggered.connect(self._open_workflow_dialog)
+        tb.addAction(act_load)
+        self.addAction(act_load)
+
+        tb.addSeparator()
+
+        # Run graph manually (Ctrl+Return)
         act_run = QAction("Ejecutar", self)
         act_run.setShortcut("Ctrl+Return")
         act_run.triggered.connect(self._run_graph)
@@ -117,7 +136,7 @@ class MainWindow(QMainWindow):
     def _load_image_file(self, path: str, scene_pos: QPointF | None = None):
         img = cv2.imread(path)
         if img is None:
-            QMessageBox.critical(self, "Error", f"No se pudo leer:\n{path}")
+            QMessageBox.critical(self, "Error", f"No se pudo cargar la imagen:\n{path}")
             return
         filename = os.path.basename(path)
         h, w = img.shape[:2]
@@ -130,7 +149,7 @@ class MainWindow(QMainWindow):
     def _open_image_dialog(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Abrir imagen", "",
-            "Imagenes (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp)"
+            "Imágenes (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp)"
         )
         if path:
             center = self._canvas.mapToScene(
@@ -146,13 +165,13 @@ class MainWindow(QMainWindow):
             return
         path, _ = QFileDialog.getOpenFileName(
             self, "Cambiar imagen", "",
-            "Imagenes (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp)"
+            "Imágenes (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp)"
         )
         if not path:
             return
         img = cv2.imread(path)
         if img is None:
-            QMessageBox.critical(self, "Error", f"No se pudo leer:\n{path}")
+            QMessageBox.critical(self, "Error", f"No se pudo cargar la imagen:\n{path}")
             return
         node.set_image(img)
         node.filename = os.path.basename(path)
@@ -265,3 +284,69 @@ class MainWindow(QMainWindow):
         self._details.load_node(None)
         self._preview.clear()
         self._status.showMessage("Canvas limpiado.")
+
+    def _get_node_positions(self) -> dict[str, tuple[float, float]]:
+        return {
+            node_id: (item.pos().x(), item.pos().y())
+            for node_id, item in self._canvas._node_items.items()
+        }
+
+    def _save_workflow_dialog(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar workflow", "", "Workflow (*.json)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        self._save_workflow_to(path)
+
+    def _save_workflow_to(self, path: str):
+        data = self.graph.to_dict(self._get_node_positions())
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            self._workflow_path = path
+            self._status.showMessage(f"Workflow guardado: {os.path.basename(path)}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo guardar el workflow:\n{exc}")
+
+    def _open_workflow_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Abrir workflow", "", "Workflow (*.json)"
+        )
+        if not path:
+            return
+        self._load_workflow_from(path)
+
+    def _load_workflow_from(self, path: str):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo cargar el workflow:\n{exc}")
+            return
+
+        self._clear_canvas()
+        try:
+            graph = WorkflowGraph.from_dict(data)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"El workflow no es válido:\n{exc}")
+            return
+
+        self.graph = graph
+        self._canvas.graph = graph
+
+        for node_info in data.get("nodes", []):
+            node_id = node_info["node_id"]
+            node = self.graph.nodes.get(node_id)
+            pos = node_info.get("position", {"x": 100, "y": 100})
+            if node is not None:
+                self._canvas.add_node(node, pos["x"], pos["y"])
+
+        for edge in self.graph.edges:
+            self._canvas.add_edge(edge.source_id, edge.target_id)
+
+        self._workflow_path = path
+        self._status.showMessage(f"Workflow cargado: {os.path.basename(path)}")
+        self._schedule_run()

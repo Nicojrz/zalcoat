@@ -1,3 +1,4 @@
+import base64
 import cv2
 import numpy as np
 from core.node_base import BaseNode, NodeParam
@@ -17,6 +18,7 @@ class InputImageNode(BaseNode):
     def __init__(self, node_id: str):
         super().__init__(node_id)
         self._image: np.ndarray | None = None
+        self.filename: str = ""
 
     def param_descriptors(self):
         return []
@@ -24,6 +26,31 @@ class InputImageNode(BaseNode):
     def set_image(self, img: np.ndarray):
         self._image = img
         self._dirty = True
+
+    def serialize(self):
+        data = super().serialize()
+        data["filename"] = self.filename
+        if self._image is not None:
+            success, buffer = cv2.imencode(".png", self._image)
+            if success:
+                data["image_data"] = base64.b64encode(buffer.tobytes()).decode("ascii")
+        return data
+
+    @classmethod
+    def deserialize(cls, node_id: str, data: dict):
+        node = cls(node_id)
+        params = data.get("params", {})
+        node.params.update(params)
+        node.filename = data.get("filename", "")
+        image_data = data.get("image_data")
+        if image_data:
+            raw = base64.b64decode(image_data)
+            arr = np.frombuffer(raw, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                img = np.zeros((256, 256, 3), dtype=np.uint8)
+            node.set_image(img)
+        return node
 
     def process(self, inputs):
         if self._image is None:
@@ -277,6 +304,102 @@ class HistogramEqualizationNode(BaseNode):
             return cv2.equalizeHist(img)
 
 
+class IntensityEqualizationNode(BaseNode):
+    node_type = "intensity_equalization"
+    label = "Intensity Equalization"
+    category = "Intensidad"
+    color = "#F5C542"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("method", "Method", "choice", "uniform",
+                      choices=["uniform", "exponential", "rayleigh", "hypercubic", "logarithmic", "power"]),
+            NodeParam("scale", "Scale", "float", 1.0, 0.1, 5.0, 0.1),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        img = inputs[0]
+        method = self.params["method"]
+        scale = max(0.1, float(self.params.get("scale", 1.0)))
+
+        if method == "uniform":
+            return cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+
+        src = img.astype(np.float32) / 255.0
+        if method == "exponential":
+            result = 1.0 - np.exp(-scale * src)
+        elif method == "rayleigh":
+            sigma = max(scale, 0.1)
+            result = 1.0 - np.exp(-(src ** 2) / (2.0 * sigma * sigma + 1e-9))
+        elif method == "hypercubic":
+            result = np.power(src, 1.0 / (scale + 1.0))
+        elif method == "logarithmic":
+            result = np.log1p(scale * src) / np.log1p(scale)
+        elif method == "power":
+            result = np.power(src, scale)
+        else:
+            result = src
+
+        result = np.clip(result * 255.0, 0, 255).astype(np.uint8)
+        return result
+
+
+class MultiThresholdNode(BaseNode):
+    node_type = "multi_threshold"
+    label = "Multi Threshold"
+    category = "Intensidad"
+    color = "#F5C542"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("num_thresholds", "Number of thresholds", "choice", "3", 
+                      choices=["2", "3", "4", "5"]),
+            NodeParam("th1", "Threshold 1", "int", 85, 0, 255, 1),
+            NodeParam("th2", "Threshold 2", "int", 170, 0, 255, 1),
+            NodeParam("th3", "Threshold 3", "int", 200, 0, 255, 1),
+            NodeParam("th4", "Threshold 4", "int", 225, 0, 255, 1),
+            NodeParam("th5", "Threshold 5", "int", 240, 0, 255, 1),
+            NodeParam("val0", "Value 0 (below th1)", "int", 0, 0, 255, 1),
+            NodeParam("val1", "Value 1", "int", 85, 0, 255, 1),
+            NodeParam("val2", "Value 2", "int", 170, 0, 255, 1),
+            NodeParam("val3", "Value 3", "int", 200, 0, 255, 1),
+            NodeParam("val4", "Value 4", "int", 225, 0, 255, 1),
+            NodeParam("val5", "Value 5 (above last threshold)", "int", 255, 0, 255, 1),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        
+        gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
+        
+        # Get number of thresholds
+        num_thresholds = int(self.params["num_thresholds"])
+        
+        # Get threshold values and sort them
+        threshold_vals = []
+        for i in range(1, num_thresholds + 1):
+            threshold_vals.append(self.params[f"th{i}"])
+        threshold_vals.sort()
+        
+        # Get output values
+        output_vals = []
+        for i in range(num_thresholds + 1):
+            output_vals.append(self.params[f"val{i}"])
+        
+        # Create segmented image
+        segmented = np.zeros_like(gray, dtype=np.uint8)
+        segmented[:] = output_vals[0]  # Initialize with first value
+        
+        # Apply thresholds
+        for i, thresh in enumerate(threshold_vals):
+            segmented[gray > thresh] = output_vals[i + 1]
+        
+        return cv2.cvtColor(segmented, cv2.COLOR_GRAY2BGR)
+
+
 # ─────────────────────────────────────────────
 #  MORFOLOGÍA
 # ─────────────────────────────────────────────
@@ -368,6 +491,342 @@ class RotateNode(BaseNode):
         return cv2.warpAffine(img, M, (w, h))
 
 
+class InverseImageNode(BaseNode):
+    node_type = "inverse_image"
+    label = "Inverse Image"
+    category = "Utilidades"
+    color = "#9B9B9B"
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        return cv2.bitwise_not(inputs[0])
+
+
+# ─────────────────────────────────────────────
+#  OPERACIONES LÓGICAS
+# ─────────────────────────────────────────────
+
+def _normalize_images(img1: np.ndarray, img2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Normaliza dos imágenes para que tengan el mismo tamaño."""
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+    
+    if h1 == h2 and w1 == w2:
+        return img1, img2
+    
+    # Usa el tamaño más grande
+    max_h = max(h1, h2)
+    max_w = max(w1, w2)
+    
+    # Redimensiona ambas imágenes al tamaño más grande
+    img1_resized = cv2.resize(img1, (max_w, max_h), interpolation=cv2.INTER_LINEAR)
+    img2_resized = cv2.resize(img2, (max_w, max_h), interpolation=cv2.INTER_LINEAR)
+    
+    return img1_resized, img2_resized
+
+
+class LogicalAndNode(BaseNode):
+    node_type = "logical_and"
+    label = "Logical AND"
+    category = "Operaciones lógicas"
+    color = "#FF6B6B"
+    max_inputs = 2
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if len(inputs) < 2:
+            return inputs[0] if inputs else np.zeros((256, 256, 3), dtype=np.uint8)
+        img1, img2 = _normalize_images(inputs[0], inputs[1])
+        return cv2.bitwise_and(img1, img2)
+
+
+class LogicalOrNode(BaseNode):
+    node_type = "logical_or"
+    label = "Logical OR"
+    category = "Operaciones lógicas"
+    color = "#FF6B6B"
+    max_inputs = 2
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if len(inputs) < 2:
+            return inputs[0] if inputs else np.zeros((256, 256, 3), dtype=np.uint8)
+        img1, img2 = _normalize_images(inputs[0], inputs[1])
+        return cv2.bitwise_or(img1, img2)
+
+
+class LogicalXorNode(BaseNode):
+    node_type = "logical_xor"
+    label = "Logical XOR"
+    category = "Operaciones lógicas"
+    color = "#FF6B6B"
+    max_inputs = 2
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if len(inputs) < 2:
+            return inputs[0] if inputs else np.zeros((256, 256, 3), dtype=np.uint8)
+        img1, img2 = _normalize_images(inputs[0], inputs[1])
+        return cv2.bitwise_xor(img1, img2)
+
+
+class LogicalNotNode(BaseNode):
+    node_type = "logical_not"
+    label = "Logical NOT"
+    category = "Operaciones lógicas"
+    color = "#FF6B6B"
+    max_inputs = 1
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        return cv2.bitwise_not(inputs[0])
+
+
+# ─────────────────────────────────────────────
+#  OPERACIONES ARITMÉTICAS
+# ─────────────────────────────────────────────
+
+class AdditionNode(BaseNode):
+    node_type = "addition"
+    label = "Addition"
+    category = "Operaciones aritméticas"
+    color = "#FFD93D"
+    max_inputs = 2
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if len(inputs) < 2:
+            return inputs[0] if inputs else np.zeros((256, 256, 3), dtype=np.uint8)
+        img1, img2 = _normalize_images(inputs[0], inputs[1])
+        return cv2.add(img1, img2)
+
+
+class SubtractionNode(BaseNode):
+    node_type = "subtraction"
+    label = "Subtraction"
+    category = "Operaciones aritméticas"
+    color = "#FFD93D"
+    max_inputs = 2
+
+    def param_descriptors(self):
+        return []
+
+    def process(self, inputs):
+        if len(inputs) < 2:
+            return inputs[0] if inputs else np.zeros((256, 256, 3), dtype=np.uint8)
+        img1, img2 = _normalize_images(inputs[0], inputs[1])
+        return cv2.subtract(img1, img2)
+
+
+class ScalarMultiplyNode(BaseNode):
+    node_type = "scalar_multiply"
+    label = "Scalar Multiply"
+    category = "Operaciones aritméticas"
+    color = "#FFD93D"
+    max_inputs = 1
+
+    def param_descriptors(self):
+        return [NodeParam("scalar", "Scalar", "float", 1.0, 0.0, 5.0, 0.1)]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        return cv2.multiply(inputs[0], self.params["scalar"])
+
+
+# ─────────────────────────────────────────────
+#  RUIDO
+# ─────────────────────────────────────────────
+
+class SaltPepperNoiseNode(BaseNode):
+    node_type = "salt_pepper_noise"
+    label = "Salt & Pepper Noise"
+    category = "Ruido"
+    color = "#8B5CF6"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("amount", "Amount", "float", 0.05, 0.0, 0.5, 0.01),
+            NodeParam("salt_vs_pepper", "Salt/Pepper ratio", "float", 0.5, 0.0, 1.0, 0.1),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        img = inputs[0].copy()
+        amount = self.params["amount"]
+        salt_ratio = self.params["salt_vs_pepper"]
+        
+        # Salt noise
+        salt_mask = np.random.random(img.shape[:2]) < (amount * salt_ratio)
+        img[salt_mask] = 255
+        
+        # Pepper noise
+        pepper_mask = np.random.random(img.shape[:2]) < (amount * (1 - salt_ratio))
+        img[pepper_mask] = 0
+        
+        return img
+
+
+class GaussianNoiseNode(BaseNode):
+    node_type = "gaussian_noise"
+    label = "Gaussian Noise"
+    category = "Ruido"
+    color = "#8B5CF6"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("mean", "Mean", "float", 0.0, -50.0, 50.0, 1.0),
+            NodeParam("std", "Std Dev", "float", 25.0, 0.0, 100.0, 1.0),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        img = inputs[0].astype(np.float32)
+        noise = np.random.normal(self.params["mean"], self.params["std"], img.shape)
+        noisy = img + noise
+        return np.clip(noisy, 0, 255).astype(np.uint8)
+
+
+# ─────────────────────────────────────────────
+#  ETIQUETADO
+# ─────────────────────────────────────────────
+
+class ConnectedComponentsNode(BaseNode):
+    node_type = "connected_components"
+    label = "Connected Components"
+    category = "Etiquetado"
+    color = "#06B6D4"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("connectivity", "Connectivity", "choice", "8", choices=["4", "8"]),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
+        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        
+        connectivity = 8 if self.params["connectivity"] == "8" else 4
+        num_labels, labels = cv2.connectedComponents(binary, connectivity=connectivity)
+        
+        # Normalize labels to 0-255 range for visualization
+        if num_labels > 1:
+            labels = (labels / (num_labels - 1) * 255).astype(np.uint8)
+        else:
+            labels = np.zeros_like(labels, dtype=np.uint8)
+        
+        return cv2.cvtColor(labels, cv2.COLOR_GRAY2BGR)
+
+
+# ─────────────────────────────────────────────
+#  PSEUDOCOLOR
+# ─────────────────────────────────────────────
+
+class PseudocolorNode(BaseNode):
+    node_type = "pseudocolor"
+    label = "Pseudocolor"
+    category = "Utilidades"
+    color = "#9B9B9B"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("colormap", "Colormap", "choice", "jet",
+                      choices=["autumn", "bone", "jet", "winter", "rainbow", "ocean", "summer", "spring",
+                               "cool", "hsv", "pink", "hot", "parula", "magma", "inferno", "plasma", "viridis",
+                               "cividis", "twilight", "twilight_shifted", "turbo", "deepgreen"]),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
+        
+        colormap_map = {
+            "autumn": cv2.COLORMAP_AUTUMN,
+            "bone": cv2.COLORMAP_BONE,
+            "jet": cv2.COLORMAP_JET,
+            "winter": cv2.COLORMAP_WINTER,
+            "rainbow": cv2.COLORMAP_RAINBOW,
+            "ocean": cv2.COLORMAP_OCEAN,
+            "summer": cv2.COLORMAP_SUMMER,
+            "spring": cv2.COLORMAP_SPRING,
+            "cool": cv2.COLORMAP_COOL,
+            "hsv": cv2.COLORMAP_HSV,
+            "pink": cv2.COLORMAP_PINK,
+            "hot": cv2.COLORMAP_HOT,
+            "parula": cv2.COLORMAP_PARULA,
+            "magma": cv2.COLORMAP_MAGMA,
+            "inferno": cv2.COLORMAP_INFERNO,
+            "plasma": cv2.COLORMAP_PLASMA,
+            "viridis": cv2.COLORMAP_VIRIDIS,
+            "cividis": cv2.COLORMAP_CIVIDIS,
+            "twilight": cv2.COLORMAP_TWILIGHT,
+            "twilight_shifted": cv2.COLORMAP_TWILIGHT_SHIFTED,
+            "turbo": cv2.COLORMAP_TURBO,
+            "deepgreen": cv2.COLORMAP_DEEPGREEN,
+        }
+        
+        return cv2.applyColorMap(gray, colormap_map[self.params["colormap"]])
+
+
+# ─────────────────────────────────────────────
+#  FILTROS MORFOLÓGICOS
+# ─────────────────────────────────────────────
+
+class MaxFilterNode(BaseNode):
+    node_type = "max_filter"
+    label = "Maximum Filter"
+    category = "Morfología"
+    color = "#5DBE8A"
+
+    def param_descriptors(self):
+        return [NodeParam("kernel_size", "Kernel size", "int", 3, 1, 31, 2)]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        k = self.params["kernel_size"]
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k, k))
+        return cv2.dilate(inputs[0], kernel)
+
+
+class MinFilterNode(BaseNode):
+    node_type = "min_filter"
+    label = "Minimum Filter"
+    category = "Morfología"
+    color = "#5DBE8A"
+
+    def param_descriptors(self):
+        return [NodeParam("kernel_size", "Kernel size", "int", 3, 1, 31, 2)]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+        k = self.params["kernel_size"]
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k, k))
+        return cv2.erode(inputs[0], kernel)
+
+
 # ─────────────────────────────────────────────
 #  REGISTRO GLOBAL
 # ─────────────────────────────────────────────
@@ -382,5 +841,13 @@ NODE_REGISTRY: dict[str, type[BaseNode]] = {
         ThresholdNode, HistogramEqualizationNode,
         MorphologyNode,
         GrayscaleNode, FlipNode, RotateNode,
+        LogicalAndNode, LogicalOrNode, LogicalXorNode, LogicalNotNode,
+        AdditionNode, SubtractionNode, ScalarMultiplyNode,
+        SaltPepperNoiseNode, GaussianNoiseNode,
+        ConnectedComponentsNode,
+        PseudocolorNode,
+        MaxFilterNode, MinFilterNode,
+        IntensityEqualizationNode, MultiThresholdNode,
+        InverseImageNode,
     ]
 }

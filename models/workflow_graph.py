@@ -48,6 +48,51 @@ class WorkflowGraph:
         self.edges = [e for e in self.edges
                       if not (e.source_id == source_id and e.target_id == target_id)]
 
+    def to_dict(self, node_positions: dict[str, tuple[float, float]] | None = None) -> dict:
+        nodes = []
+        for node_id, node in self.nodes.items():
+            node_data = {
+                "node_id": node_id,
+                "node_type": node.node_type,
+                "data": node.serialize(),
+            }
+            if node_positions and node_id in node_positions:
+                x, y = node_positions[node_id]
+                node_data["position"] = {"x": x, "y": y}
+            nodes.append(node_data)
+
+        edges = [{"source_id": e.source_id, "target_id": e.target_id}
+                 for e in self.edges]
+
+        return {
+            "nodes": nodes,
+            "edges": edges,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "WorkflowGraph":
+        graph = cls()
+        for node_info in data.get("nodes", []):
+            node_id = node_info["node_id"]
+            node_type = node_info["node_type"]
+            node_data = node_info.get("data", {})
+            if node_type not in NODE_REGISTRY:
+                raise ValueError(f"Unknown node type: {node_type}")
+            node_cls = NODE_REGISTRY[node_type]
+            if hasattr(node_cls, "deserialize"):
+                node = node_cls.deserialize(node_id, node_data)
+            else:
+                node = node_cls(node_id)
+                node.params.update(node_data.get("params", {}))
+            graph.nodes[node_id] = node
+
+        for edge_info in data.get("edges", []):
+            source_id = edge_info["source_id"]
+            target_id = edge_info["target_id"]
+            if source_id in graph.nodes and target_id in graph.nodes:
+                graph.edges.append(Edge(source_id, target_id))
+        return graph
+
     # ── Ejecución ──────────────────────────────────────────
     def _topological_sort(self) -> list[str]:
         """Kahn's algorithm."""

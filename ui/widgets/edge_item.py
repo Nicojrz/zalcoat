@@ -9,10 +9,13 @@ class EdgeItem(QGraphicsPathItem):
     HIT_WIDTH = 12   # ancho de zona clickeable (invisible)
 
     def __init__(self, source_pos: QPointF, target_pos: QPointF,
-                 source_id: str = "", target_id: str = ""):
+                 source_id: str = "", target_id: str = "",
+                 source_port_index: int = 0, target_port_index: int = 0):
         super().__init__()
         self.source_id = source_id
         self.target_id = target_id
+        self.source_port_index = source_port_index
+        self.target_port_index = target_port_index
         self._source_pos = source_pos
         self._target_pos = target_pos
         self._hovered = False

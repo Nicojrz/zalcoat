@@ -15,14 +15,14 @@ class PreviewPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(4)
 
-        title = QLabel("Preview")
+        title = QLabel("Vista Previa")
         title.setStyleSheet("color: #7F849C; font-size: 11px; font-weight: bold;")
         layout.addWidget(title)
 
         self._label = QLabel()
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setStyleSheet("background: #1A1B26; border-radius: 6px; color: #45475A;")
-        self._label.setText("Sin imagen")
+        self._label.setText("Sin imagen cargada")
         self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self._label)
 
@@ -110,5 +110,5 @@ class PreviewPanel(QWidget):
     def clear(self):
         self._original_pixmap = None
         self._label.clear()
-        self._label.setText("Conecta un Output Image\npara ver el resultado")
+        self._label.setText("Conecta un Nodo Output\npara ver el resultado")
         self._info.setText("")

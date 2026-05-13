@@ -51,6 +51,18 @@ class BaseNode(ABC):
             self._dirty = False
         return self._cache
 
+    def serialize(self) -> dict:
+        return {
+            "params": self.params,
+        }
+
+    @classmethod
+    def deserialize(cls, node_id: str, data: dict) -> "BaseNode":
+        node = cls(node_id)
+        params = data.get("params", {})
+        node.params.update(params)
+        return node
+
     def to_dict(self) -> dict:
         return {
             "node_id": self.node_id,

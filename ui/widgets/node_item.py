@@ -70,15 +70,28 @@ class NodeItem(QGraphicsItem):
         self._build_ports()
 
     def _build_ports(self):
-        if self.node.max_inputs > 0:
-            port = PortItem(self, is_output=False)
+        # Create input ports
+        for i in range(self.node.max_inputs):
+            port = PortItem(self, is_output=False, index=i)
             port.setParentItem(self)
-            port.setPos(0, NODE_H / 2)
+            if self.node.max_inputs == 1:
+                port.setPos(0, NODE_H / 2)
+            else:
+                # Distribute ports vertically
+                spacing = NODE_H / (self.node.max_inputs + 1)
+                port.setPos(0, spacing * (i + 1))
             self.input_ports.append(port)
-        if self.node.max_outputs > 0:
-            port = PortItem(self, is_output=True)
+        
+        # Create output ports
+        for i in range(self.node.max_outputs):
+            port = PortItem(self, is_output=True, index=i)
             port.setParentItem(self)
-            port.setPos(NODE_W, NODE_H / 2)
+            if self.node.max_outputs == 1:
+                port.setPos(NODE_W, NODE_H / 2)
+            else:
+                # Distribute ports vertically
+                spacing = NODE_H / (self.node.max_outputs + 1)
+                port.setPos(NODE_W, spacing * (i + 1))
             self.output_ports.append(port)
 
     def _get_thumb(self):

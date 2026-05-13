@@ -65,6 +65,24 @@ class NodeCanvas(QGraphicsView):
         self._node_items[node.node_id] = item
         return item
 
+    def add_edge(self, source_id: str, target_id: str, source_port_index: int = 0, target_port_index: int = 0):
+        source_item = self._node_items.get(source_id)
+        target_item = self._node_items.get(target_id)
+        if source_item is None or target_item is None:
+            return
+        if source_port_index >= len(source_item.output_ports) or target_port_index >= len(target_item.input_ports):
+            return
+        edge = EdgeItem(
+            source_item.output_ports[source_port_index].center_scene_pos(),
+            target_item.input_ports[target_port_index].center_scene_pos(),
+            source_id=source_id,
+            target_id=target_id,
+            source_port_index=source_port_index,
+            target_port_index=target_port_index,
+        )
+        self._scene.addItem(edge)
+        self._edge_items.append(edge)
+
     def has_output_node(self) -> bool:
         from core.nodes.all_nodes import OutputImageNode
         return any(isinstance(n, OutputImageNode) for n in self.graph.nodes.values())
@@ -117,6 +135,8 @@ class NodeCanvas(QGraphicsView):
             in_port.center_scene_pos(),
             source_id=source_id,
             target_id=target_id,
+            source_port_index=out_port.index,
+            target_port_index=in_port.index,
         )
         self._scene.addItem(edge)
         self._edge_items.append(edge)
@@ -143,18 +163,14 @@ class NodeCanvas(QGraphicsView):
         for edge in self._edge_items:
             if edge.source_id == node_id:
                 src_item = self._node_items.get(node_id)
-                if src_item and src_item.output_ports:
-                    edge.update_positions(
-                        src_item.output_ports[0].center_scene_pos(),
-                        edge._target_pos
-                    )
+                if src_item and edge.source_port_index < len(src_item.output_ports):
+                    new_source_pos = src_item.output_ports[edge.source_port_index].center_scene_pos()
+                    edge.update_positions(new_source_pos, edge._target_pos)
             if edge.target_id == node_id:
                 tgt_item = self._node_items.get(node_id)
-                if tgt_item and tgt_item.input_ports:
-                    edge.update_positions(
-                        edge._source_pos,
-                        tgt_item.input_ports[0].center_scene_pos()
-                    )
+                if tgt_item and edge.target_port_index < len(tgt_item.input_ports):
+                    new_target_pos = tgt_item.input_ports[edge.target_port_index].center_scene_pos()
+                    edge.update_positions(edge._source_pos, new_target_pos)
 
     def _on_node_selected(self, node_id: str):
         node = self.graph.nodes.get(node_id)
@@ -187,8 +203,8 @@ class NodeCanvas(QGraphicsView):
             if node_type == "output_image" and self.has_output_node():
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.information(
-                    self, "Un solo Output",
-                    "Ya existe un nodo Output Image en el workflow.\n"
+                    self, "Un solo nodo Output",
+                    "Ya existe un nodo Output en el workflow.\n"
                     "Solo se permite uno a la vez."
                 )
                 return
@@ -239,7 +255,7 @@ class NodeCanvas(QGraphicsView):
             QMenu::item { padding: 6px 20px; border-radius: 4px; }
             QMenu::item:selected { background: #FF6B6B; color: #fff; }
         """)
-        act = QAction("Eliminar conexion", menu)
+        act = QAction("Eliminar conexión", menu)
         act.triggered.connect(lambda: self._remove_edge(edge))
         menu.addAction(act)
         menu.exec(global_pos)
