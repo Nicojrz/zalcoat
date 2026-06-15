@@ -785,24 +785,50 @@ class ConnectedComponentsNode(BaseNode):
     def param_descriptors(self):
         return [
             NodeParam("connectivity", "Connectivity", "choice", "8", choices=["4", "8"]),
+            NodeParam("show_bboxes", "Show boxes", "bool", True),
         ]
 
     def process(self, inputs):
         if not inputs:
             return np.zeros((256, 256, 3), dtype=np.uint8)
-        gray = cv2.cvtColor(inputs[0], cv2.COLOR_BGR2GRAY) if len(inputs[0].shape) == 3 else inputs[0]
+
+        img = inputs[0]
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
         _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        
+
         connectivity = 8 if self.params["connectivity"] == "8" else 4
-        num_labels, labels = cv2.connectedComponents(binary, connectivity=connectivity)
-        
-        # Normalize labels to 0-255 range for visualization
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=connectivity)
+
+        if self.params.get("show_bboxes", True):
+            output = img.copy() if len(img.shape) == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            highlight_colors = [
+                (0, 0, 255),   # red
+                (0, 255, 0),   # green
+                (255, 0, 0),   # blue
+                (0, 255, 255), # yellow
+                (255, 0, 255), # magenta
+                (255, 255, 0), # cyan
+                (0, 128, 255), # orange
+                (255, 128, 0), # light orange
+                (128, 0, 255), # violet
+                (0, 255, 128), # mint
+            ]
+
+            for label in range(1, num_labels):
+                x, y, w, h, area = stats[label]
+                if area <= 0:
+                    continue
+                color = highlight_colors[(label - 1) % len(highlight_colors)]
+                cv2.rectangle(output, (x, y), (x + w - 1, y + h - 1), color, 2)
+                cv2.putText(output, f"{label}", (x, max(y - 6, 12)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+            return output
+
         if num_labels > 1:
-            labels = (labels / (num_labels - 1) * 255).astype(np.uint8)
+            labels_vis = (labels / (num_labels - 1) * 255).astype(np.uint8)
         else:
-            labels = np.zeros_like(labels, dtype=np.uint8)
-        
-        return cv2.cvtColor(labels, cv2.COLOR_GRAY2BGR)
+            labels_vis = np.zeros_like(labels, dtype=np.uint8)
+        return cv2.cvtColor(labels_vis, cv2.COLOR_GRAY2BGR)
 
 
 # ─────────────────────────────────────────────
