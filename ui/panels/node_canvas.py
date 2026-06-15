@@ -130,7 +130,9 @@ class NodeCanvas(QGraphicsView):
         in_port  = tgt if src.is_output else src
         source_id = out_port.node_item.node.node_id
         target_id = in_port.node_item.node.node_id
-        self.graph.connect(source_id, target_id)
+        self.graph.connect(source_id, target_id,
+                           source_port_index=out_port.index,
+                           target_port_index=in_port.index)
         edge = EdgeItem(
             out_port.center_scene_pos(),
             in_port.center_scene_pos(),
@@ -153,7 +155,9 @@ class NodeCanvas(QGraphicsView):
 
     def _remove_edge(self, edge: EdgeItem):
         """Elimina una arista del canvas y del grafo."""
-        self.graph.disconnect(edge.source_id, edge.target_id)
+        self.graph.disconnect(edge.source_id, edge.target_id,
+                               source_port_index=edge.source_port_index,
+                               target_port_index=edge.target_port_index)
         self._scene.removeItem(edge)
         self._edge_items.remove(edge)
         self.graph_changed.emit()

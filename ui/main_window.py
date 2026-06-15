@@ -349,7 +349,8 @@ class MainWindow(QMainWindow):
                 self._canvas.add_node(node, pos["x"], pos["y"])
 
         for edge in self.graph.edges:
-            self._canvas.add_edge(edge.source_id, edge.target_id)
+            self._canvas.add_edge(edge.source_id, edge.target_id,
+                                  edge.source_port_index, edge.target_port_index)
 
         self._workflow_path = path
         self._status.showMessage(f"Workflow cargado: {os.path.basename(path)}")
