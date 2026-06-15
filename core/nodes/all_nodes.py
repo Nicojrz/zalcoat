@@ -324,14 +324,20 @@ class HistogramEqualizationNode(BaseNode):
     color = "#F5C542"
 
     def param_descriptors(self):
-        return [NodeParam("method", "Method", "choice", "standard", choices=["standard", "clahe"])]
+        return [
+            NodeParam("method", "Method", "choice", "standard", choices=["standard", "clahe"]),
+            NodeParam("clip_limit", "Clip limit", "float", 2.0, 0.1, 10.0, 0.1),
+            NodeParam("tile_grid_size", "Tile grid size", "int", 8, 1, 64, 1),
+        ]
 
     def process(self, inputs):
         if not inputs:
             return np.zeros((256, 256, 3), dtype=np.uint8)
         img = inputs[0]
         if self.params["method"] == "clahe":
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            clip_limit = float(self.params.get("clip_limit", 2.0))
+            tile_size = int(self.params.get("tile_grid_size", 8))
+            clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile_size, tile_size))
             if len(img.shape) == 3:
                 lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
                 lab[:, :, 0] = clahe.apply(lab[:, :, 0])
