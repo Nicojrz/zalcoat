@@ -276,6 +276,47 @@ class ThresholdNode(BaseNode):
         return cv2.cvtColor(result, cv2.COLOR_GRAY2BGR)
 
 
+class HSVThresholdNode(BaseNode):
+    node_type = "hsv_threshold"
+    label = "HSV Threshold"
+    category = "Segmentación"
+    color = "#8B5CF6"
+
+    def param_descriptors(self):
+        return [
+            NodeParam("lower_hsv", "Lower HSV", "hsv", (0, 100, 100)),
+            NodeParam("upper_hsv", "Upper HSV", "hsv", (10, 255, 255)),
+            NodeParam("output", "Output", "choice", "color",
+                      choices=["color", "mask"]),
+        ]
+
+    def process(self, inputs):
+        if not inputs:
+            return np.zeros((256, 256, 3), dtype=np.uint8)
+
+        img = inputs[0]
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        lower = np.array(self.params["lower_hsv"], dtype=np.uint8)
+        upper = np.array(self.params["upper_hsv"], dtype=np.uint8)
+
+        if lower[0] <= upper[0]:
+            mask = cv2.inRange(hsv, lower, upper)
+        else:
+            mask_lower = np.array([lower[0], lower[1], lower[2]], dtype=np.uint8)
+            mask_upper = np.array([179, upper[1], upper[2]], dtype=np.uint8)
+            mask1 = cv2.inRange(hsv, mask_lower, mask_upper)
+            wrap_lower = np.array([0, lower[1], lower[2]], dtype=np.uint8)
+            wrap_upper = np.array([upper[0], upper[1], upper[2]], dtype=np.uint8)
+            mask2 = cv2.inRange(hsv, wrap_lower, wrap_upper)
+            mask = cv2.bitwise_or(mask1, mask2)
+
+        if self.params.get("output", "color") == "mask":
+            return cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+
+        return cv2.bitwise_and(img, img, mask=mask)
+
+
 class HistogramEqualizationNode(BaseNode):
     node_type = "histogram_eq"
     label = "Histogram Equalization"
@@ -838,7 +879,7 @@ NODE_REGISTRY: dict[str, type[BaseNode]] = {
         GaussianBlurNode, MedianBlurNode, BilateralFilterNode,
         SharpenNode, SobelNode, LaplacianNode,
         BrightnessContrastNode, GammaCorrectionNode,
-        ThresholdNode, HistogramEqualizationNode,
+        ThresholdNode, HSVThresholdNode, HistogramEqualizationNode,
         MorphologyNode,
         GrayscaleNode, FlipNode, RotateNode,
         LogicalAndNode, LogicalOrNode, LogicalXorNode, LogicalNotNode,

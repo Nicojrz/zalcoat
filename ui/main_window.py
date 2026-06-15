@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         self._canvas.graph_changed.connect(self._schedule_run)
         self._canvas.load_image_for_node.connect(self._pick_image_for_node)
         self._canvas.image_dropped.connect(self._on_image_dropped_on_canvas)
-        self._details.param_changed.connect(self._schedule_run)
+        self._details.param_changed.connect(self._on_node_param_changed)
 
     # ── Toolbar ───────────────────────────────────────────
 
@@ -219,11 +219,15 @@ class MainWindow(QMainWindow):
 
     # ── Ejecucion del workflow ────────────────────────────
 
-    def _schedule_run(self):
+    def _schedule_run(self, *args):
         """Programa la ejecución del workflow con debounce.
         Se ejecuta automáticamente 100ms después del último cambio."""
         self._exec_timer.stop()  # Reinicia el timer
         self._exec_timer.start()
+
+    def _on_node_param_changed(self, node_id: str):
+        self.graph.invalidate_node_and_descendants(node_id)
+        self._schedule_run()
 
     def _output_node(self) -> OutputImageNode | None:
         """Retorna el nodo OutputImage si existe en el grafo."""

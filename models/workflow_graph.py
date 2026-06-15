@@ -40,13 +40,29 @@ class WorkflowGraph:
             if e.source_id == source_id and e.target_id == target_id:
                 return
         self.edges.append(Edge(source_id, target_id))
-        # Invalida cache del target
-        if target_id in self.nodes:
-            self.nodes[target_id]._dirty = True
+        self.invalidate_node_and_descendants(target_id)
 
     def disconnect(self, source_id: str, target_id: str):
         self.edges = [e for e in self.edges
                       if not (e.source_id == source_id and e.target_id == target_id)]
+        self.invalidate_node_and_descendants(target_id)
+
+    def invalidate_node_and_descendants(self, node_id: str):
+        if node_id not in self.nodes:
+            return
+        queue = [node_id]
+        visited: set[str] = set()
+        while queue:
+            current = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+            node = self.nodes.get(current)
+            if node is not None:
+                node._dirty = True
+            for edge in self.edges:
+                if edge.source_id == current and edge.target_id not in visited:
+                    queue.append(edge.target_id)
 
     def to_dict(self, node_positions: dict[str, tuple[float, float]] | None = None) -> dict:
         nodes = []

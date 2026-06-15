@@ -1,15 +1,17 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QSlider, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QScrollArea, QFrame
+    QSlider, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QScrollArea, QFrame,
+    QPushButton, QColorDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from core.node_base import BaseNode, NodeParam
 
 
 class NodeDetailsPanel(QWidget):
     """Genera widgets Qt dinámicamente según los param_descriptors del nodo seleccionado."""
 
-    param_changed = pyqtSignal()   # pide re-ejecución del grafo
+    param_changed = pyqtSignal(str)   # pide re-ejecución del grafo para el nodo modificado
 
     def __init__(self):
         super().__init__()
@@ -113,6 +115,8 @@ class NodeDetailsPanel(QWidget):
             widget = self._make_bool_widget(node, desc)
         elif desc.type == "choice":
             widget = self._make_choice_widget(node, desc)
+        elif desc.type == "hsv":
+            widget = self._make_hsv_widget(node, desc)
         else:
             widget = QLabel(f"({desc.type} no soportado)")
 
@@ -140,14 +144,14 @@ class NodeDetailsPanel(QWidget):
             slider.setValue(v)
             slider.blockSignals(False)
             node.set_param(desc.name, v)
-            self.param_changed.emit()
+            self.param_changed.emit(node.node_id)
 
         def on_slider(v):
             spin.blockSignals(True)
             spin.setValue(v)
             spin.blockSignals(False)
             node.set_param(desc.name, v)
-            self.param_changed.emit()
+            self.param_changed.emit(node.node_id)
 
         spin.valueChanged.connect(on_spin)
         slider.valueChanged.connect(on_slider)
@@ -165,7 +169,7 @@ class NodeDetailsPanel(QWidget):
 
         def on_change(v):
             node.set_param(desc.name, v)
-            self.param_changed.emit()
+            self.param_changed.emit(node.node_id)
 
         spin.valueChanged.connect(on_change)
         return spin
@@ -176,7 +180,7 @@ class NodeDetailsPanel(QWidget):
 
         def on_change(state):
             node.set_param(desc.name, bool(state))
-            self.param_changed.emit()
+            self.param_changed.emit(node.node_id)
 
         cb.stateChanged.connect(on_change)
         return cb
@@ -190,7 +194,67 @@ class NodeDetailsPanel(QWidget):
 
         def on_change(text):
             node.set_param(desc.name, text)
-            self.param_changed.emit()
+            self.param_changed.emit(node.node_id)
 
         combo.currentTextChanged.connect(on_change)
         return combo
+
+    def _make_hsv_widget(self, node: BaseNode, desc: NodeParam) -> QWidget:
+        value = tuple(node.params.get(desc.name, (0, 0, 0)))
+        hue, sat, val = int(value[0]), int(value[1]), int(value[2])
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        top_row = QWidget()
+        top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(6)
+
+        preview = QFrame()
+        preview.setFixedSize(40, 24)
+        preview.setStyleSheet(
+            f"background: {QColor.fromHsv(hue * 2, sat, val).name()};"
+            "border: 1px solid #3A3D52; border-radius: 4px;"
+        )
+
+        info = QLabel(f"H:{hue} S:{sat} V:{val}")
+        info.setStyleSheet("color: #CDD6F4; font-size: 10px;")
+
+        button = QPushButton("Seleccionar")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setStyleSheet(
+            "background: #2A2D3E; border: 1px solid #3A3D52; border-radius: 4px;"
+            "padding: 4px 8px; color: #CDD6F4;"
+        )
+
+        top_layout.addWidget(preview)
+        top_layout.addWidget(info)
+        top_layout.addStretch()
+        top_layout.addWidget(button)
+        layout.addWidget(top_row)
+
+        def update_widgets(h, s, v):
+            preview.setStyleSheet(
+                f"background: {QColor.fromHsv(h * 2, s, v).name()};"
+                "border: 1px solid #3A3D52; border-radius: 4px;"
+            )
+            info.setText(f"H:{h} S:{s} V:{v}")
+            node.set_param(desc.name, (h, s, v))
+            self.param_changed.emit(node.node_id)
+
+        def pick_color():
+            current_color = QColor.fromHsv(hue * 2, sat, val)
+            selected = QColorDialog.getColor(current_color, self, "Selecciona un color HSV")
+            if not selected.isValid():
+                return
+            picked_h, picked_s, picked_v, _ = selected.getHsv()
+            picked_h = int(picked_h / 2) if picked_h >= 0 else 0
+            picked_s = int(picked_s)
+            picked_v = int(picked_v)
+            update_widgets(picked_h, picked_s, picked_v)
+
+        button.clicked.connect(pick_color)
+        return widget

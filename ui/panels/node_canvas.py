@@ -197,6 +197,16 @@ class NodeCanvas(QGraphicsView):
         mime = event.mimeData()
         scene_pos = self.mapToScene(event.position().toPoint())
 
+        if mime.hasUrls():
+            handled = False
+            for url in mime.urls():
+                if self._is_image_url(url):
+                    self.image_dropped.emit(url.toLocalFile(), scene_pos)
+                    scene_pos = QPointF(scene_pos.x() + 200, scene_pos.y() + 40)
+                    handled = True
+            if handled:
+                return
+
         if mime.hasText():
             node_type = mime.text()
             # Solo un OutputImageNode permitido
@@ -214,12 +224,6 @@ class NodeCanvas(QGraphicsView):
                 self.graph_changed.emit()
             except ValueError as e:
                 print(f"[Canvas] Drop error: {e}")
-
-        elif mime.hasUrls():
-            for url in mime.urls():
-                if self._is_image_url(url):
-                    self.image_dropped.emit(url.toLocalFile(), scene_pos)
-                    scene_pos = QPointF(scene_pos.x() + 200, scene_pos.y() + 40)
 
     @staticmethod
     def _is_image_url(url: QUrl) -> bool:
