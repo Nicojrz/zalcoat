@@ -455,15 +455,41 @@ class MorphologyNode(BaseNode):
         return [
             NodeParam("operation", "Operation", "choice", "erode",
                       choices=["erode", "dilate", "opening", "closing", "gradient", "tophat", "blackhat"]),
-            NodeParam("kernel_size", "Kernel size", "int", 5, 1, 31, 2),
+            NodeParam("kernel", "Structuring element", "kernel", [[1, 1, 1], [1, 1, 1], [1, 1, 1]]),
             NodeParam("iterations", "Iterations", "int", 1, 1, 10, 1),
         ]
+
+    def _normalize_kernel_matrix(self, matrix, size):
+        try:
+            matrix = [list(map(int, row)) for row in matrix]
+        except Exception:
+            matrix = []
+
+        if len(matrix) != size or any(len(row) != size for row in matrix):
+            normalized = [[0] * size for _ in range(size)]
+            old_size = len(matrix)
+            if old_size == 0:
+                return [[1] * size for _ in range(size)]
+            start = (size - old_size) // 2
+            for y in range(min(old_size, size)):
+                for x in range(min(len(matrix[y]), size)):
+                    normalized[start + y][start + x] = 1 if matrix[y][x] else 0
+            return normalized
+
+        return [[1 if value else 0 for value in row] for row in matrix]
 
     def process(self, inputs):
         if not inputs:
             return np.zeros((256, 256, 3), dtype=np.uint8)
-        k = self.params["kernel_size"]
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+
+        img = inputs[0]
+        kernel_param = self.params.get("kernel", [])
+        size = len(kernel_param) if isinstance(kernel_param, list) and kernel_param else 3
+        kernel_matrix = self._normalize_kernel_matrix(kernel_param, size)
+        kernel = np.array(kernel_matrix, dtype=np.uint8)
+        if kernel.sum() == 0:
+            kernel = np.ones((size, size), dtype=np.uint8)
+
         ops = {
             "erode": cv2.MORPH_ERODE,
             "dilate": cv2.MORPH_DILATE,
@@ -473,7 +499,7 @@ class MorphologyNode(BaseNode):
             "tophat": cv2.MORPH_TOPHAT,
             "blackhat": cv2.MORPH_BLACKHAT,
         }
-        return cv2.morphologyEx(inputs[0], ops[self.params["operation"]], kernel,
+        return cv2.morphologyEx(img, ops[self.params["operation"]], kernel,
                                 iterations=self.params["iterations"])
 
 

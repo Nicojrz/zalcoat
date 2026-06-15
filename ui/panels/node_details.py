@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QSlider, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QScrollArea, QFrame,
-    QPushButton, QColorDialog
+    QPushButton, QColorDialog, QGridLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -117,6 +117,8 @@ class NodeDetailsPanel(QWidget):
             widget = self._make_choice_widget(node, desc)
         elif desc.type == "hsv":
             widget = self._make_hsv_widget(node, desc)
+        elif desc.type == "kernel":
+            widget = self._make_kernel_widget(node, desc)
         else:
             widget = QLabel(f"({desc.type} no soportado)")
 
@@ -198,6 +200,100 @@ class NodeDetailsPanel(QWidget):
 
         combo.currentTextChanged.connect(on_change)
         return combo
+
+    def _make_kernel_widget(self, node: BaseNode, desc: NodeParam) -> QWidget:
+        matrix = node.params.get(desc.name, desc.default)
+        size = len(matrix) if isinstance(matrix, list) and matrix else 3
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
+
+        size_label = QLabel("Size:")
+        size_label.setStyleSheet("color: #CDD6F4; font-size: 11px;")
+        size_combo = QComboBox()
+        size_combo.addItems(["3", "5"])
+        size_combo.setCurrentText(str(size))
+        size_combo.setFixedWidth(60)
+
+        header_layout.addWidget(size_label)
+        header_layout.addWidget(size_combo)
+        header_layout.addStretch()
+        layout.addWidget(header)
+
+        grid_widget = QWidget()
+        grid_layout = QGridLayout(grid_widget)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        grid_layout.setSpacing(4)
+        layout.addWidget(grid_widget)
+
+        checkboxes: list[list[QCheckBox]] = []
+
+        def normalize_matrix(matrix_value, matrix_size):
+            try:
+                normalized = [list(map(int, row)) for row in matrix_value]
+            except Exception:
+                normalized = []
+            if len(normalized) != matrix_size or any(len(row) != matrix_size for row in normalized):
+                new_matrix = [[0] * matrix_size for _ in range(matrix_size)]
+                old_size = len(normalized)
+                if old_size == 0:
+                    return [[1] * matrix_size for _ in range(matrix_size)]
+                offset = (matrix_size - old_size) // 2
+                for y in range(min(old_size, matrix_size)):
+                    for x in range(min(len(normalized[y]), matrix_size)):
+                        new_matrix[offset + y][offset + x] = 1 if normalized[y][x] else 0
+                return new_matrix
+            return [[1 if value else 0 for value in row] for row in normalized]
+
+        def set_node_kernel(matrix_value):
+            node.set_param(desc.name, matrix_value)
+            self.param_changed.emit(node.node_id)
+
+        def rebuild_grid(new_size):
+            nonlocal matrix, size
+            size = new_size
+            matrix = normalize_matrix(matrix, size)
+            set_node_kernel(matrix)
+            for i in reversed(range(grid_layout.count())):
+                item = grid_layout.itemAt(i)
+                if item and item.widget():
+                    item.widget().deleteLater()
+            checkboxes.clear()
+            for y in range(size):
+                row = []
+                for x in range(size):
+                    box = QCheckBox()
+                    box.setChecked(bool(matrix[y][x]))
+                    box.setStyleSheet(
+                        "QCheckBox::indicator { width: 18px; height: 18px; }"
+                        "QCheckBox::indicator:checked { background: #5B6CFF; border: 1px solid #3A3D52; }"
+                        "QCheckBox::indicator:unchecked { background: #1A1A1A; border: 1px solid #3A3D52; }"
+                    )
+                    def make_toggler(py=y, px=x):
+                        def on_toggle(state):
+                            matrix[py][px] = 1 if state == Qt.CheckState.Checked else 0
+                            set_node_kernel(matrix)
+                        return on_toggle
+                    box.stateChanged.connect(make_toggler())
+                    grid_layout.addWidget(box, y, x)
+                    row.append(box)
+                checkboxes.append(row)
+
+        rebuild_grid(size)
+
+        def on_size_changed(text):
+            new_size = int(text)
+            rebuild_grid(new_size)
+
+        size_combo.currentTextChanged.connect(on_size_changed)
+        return widget
 
     def _make_hsv_widget(self, node: BaseNode, desc: NodeParam) -> QWidget:
         value = tuple(node.params.get(desc.name, (0, 0, 0)))
