@@ -461,40 +461,18 @@ class MorphologyNode(BaseNode):
         return [
             NodeParam("operation", "Operation", "choice", "erode",
                       choices=["erode", "dilate", "opening", "closing", "gradient", "tophat", "blackhat"]),
-            NodeParam("kernel", "Structuring element", "kernel", [[1, 1, 1], [1, 1, 1], [1, 1, 1]]),
-            NodeParam("iterations", "Iterations", "int", 1, 1, 10, 1),
+            NodeParam("kernel_size", "Kernel size", "int", 3, 1, 31, 2),
+            NodeParam("iterations", "Iterations", "int", 1, 1, 50, 1),
         ]
-
-    def _normalize_kernel_matrix(self, matrix, size):
-        try:
-            matrix = [list(map(int, row)) for row in matrix]
-        except Exception:
-            matrix = []
-
-        if len(matrix) != size or any(len(row) != size for row in matrix):
-            normalized = [[0] * size for _ in range(size)]
-            old_size = len(matrix)
-            if old_size == 0:
-                return [[1] * size for _ in range(size)]
-            start = (size - old_size) // 2
-            for y in range(min(old_size, size)):
-                for x in range(min(len(matrix[y]), size)):
-                    normalized[start + y][start + x] = 1 if matrix[y][x] else 0
-            return normalized
-
-        return [[1 if value else 0 for value in row] for row in matrix]
 
     def process(self, inputs):
         if not inputs:
             return np.zeros((256, 256, 3), dtype=np.uint8)
 
         img = inputs[0]
-        kernel_param = self.params.get("kernel", [])
-        size = len(kernel_param) if isinstance(kernel_param, list) and kernel_param else 3
-        kernel_matrix = self._normalize_kernel_matrix(kernel_param, size)
-        kernel = np.array(kernel_matrix, dtype=np.uint8)
-        if kernel.sum() == 0:
-            kernel = np.ones((size, size), dtype=np.uint8)
+        kernel_size = self.params.get("kernel_size", 3)
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
 
         ops = {
             "erode": cv2.MORPH_ERODE,
@@ -792,6 +770,7 @@ class ConnectedComponentsNode(BaseNode):
         return [
             NodeParam("connectivity", "Connectivity", "choice", "8", choices=["4", "8"]),
             NodeParam("show_bboxes", "Show boxes", "bool", True),
+            NodeParam("border_thickness", "Border thickness", "int", 2, 1, 20, 1),
         ]
 
     def process(self, inputs):
@@ -806,7 +785,7 @@ class ConnectedComponentsNode(BaseNode):
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=connectivity)
 
         if self.params.get("show_bboxes", True):
-            output = img.copy() if len(img.shape) == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            output = np.zeros_like(img) if len(img.shape) == 3 else cv2.cvtColor(np.zeros_like(img), cv2.COLOR_GRAY2BGR)
             highlight_colors = [
                 (0, 0, 255),   # red
                 (0, 255, 0),   # green
@@ -819,15 +798,14 @@ class ConnectedComponentsNode(BaseNode):
                 (128, 0, 255), # violet
                 (0, 255, 128), # mint
             ]
+            thickness = int(self.params.get("border_thickness", 2))
 
             for label in range(1, num_labels):
                 x, y, w, h, area = stats[label]
                 if area <= 0:
                     continue
                 color = highlight_colors[(label - 1) % len(highlight_colors)]
-                cv2.rectangle(output, (x, y), (x + w - 1, y + h - 1), color, 2)
-                cv2.putText(output, f"{label}", (x, max(y - 6, 12)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+                cv2.rectangle(output, (x, y), (x + w - 1, y + h - 1), color, thickness)
             return output
 
         if num_labels > 1:

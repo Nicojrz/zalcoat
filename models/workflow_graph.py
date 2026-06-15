@@ -10,6 +10,8 @@ from core.nodes.all_nodes import NODE_REGISTRY
 class Edge:
     source_id: str
     target_id: str
+    source_port_index: int = 0
+    target_port_index: int = 0
 
 
 class WorkflowGraph:
@@ -32,19 +34,31 @@ class WorkflowGraph:
                       if e.source_id != node_id and e.target_id != node_id]
 
     # ── Aristas ────────────────────────────────────────────
-    def connect(self, source_id: str, target_id: str):
-        # Evita duplicados y auto-ciclos
+    def connect(self, source_id: str, target_id: str,
+                source_port_index: int = 0, target_port_index: int = 0):
+        # Evita auto-ciclos
         if source_id == target_id:
             return
         for e in self.edges:
-            if e.source_id == source_id and e.target_id == target_id:
+            if (e.source_id == source_id and e.target_id == target_id and
+                    e.source_port_index == source_port_index and
+                    e.target_port_index == target_port_index):
                 return
-        self.edges.append(Edge(source_id, target_id))
+        self.edges.append(Edge(source_id, target_id, source_port_index, target_port_index))
         self.invalidate_node_and_descendants(target_id)
 
-    def disconnect(self, source_id: str, target_id: str):
-        self.edges = [e for e in self.edges
-                      if not (e.source_id == source_id and e.target_id == target_id)]
+    def disconnect(self, source_id: str, target_id: str,
+                   source_port_index: int | None = None, target_port_index: int | None = None):
+        def keep_edge(e: Edge) -> bool:
+            if e.source_id != source_id or e.target_id != target_id:
+                return True
+            if source_port_index is not None and e.source_port_index != source_port_index:
+                return True
+            if target_port_index is not None and e.target_port_index != target_port_index:
+                return True
+            return False
+
+        self.edges = [e for e in self.edges if keep_edge(e)]
         self.invalidate_node_and_descendants(target_id)
 
     def invalidate_node_and_descendants(self, node_id: str):
@@ -77,8 +91,15 @@ class WorkflowGraph:
                 node_data["position"] = {"x": x, "y": y}
             nodes.append(node_data)
 
-        edges = [{"source_id": e.source_id, "target_id": e.target_id}
-                 for e in self.edges]
+        edges = [
+            {
+                "source_id": e.source_id,
+                "target_id": e.target_id,
+                "source_port_index": e.source_port_index,
+                "target_port_index": e.target_port_index,
+            }
+            for e in self.edges
+        ]
 
         return {
             "nodes": nodes,
@@ -105,8 +126,10 @@ class WorkflowGraph:
         for edge_info in data.get("edges", []):
             source_id = edge_info["source_id"]
             target_id = edge_info["target_id"]
+            source_port_index = int(edge_info.get("source_port_index", 0))
+            target_port_index = int(edge_info.get("target_port_index", 0))
             if source_id in graph.nodes and target_id in graph.nodes:
-                graph.edges.append(Edge(source_id, target_id))
+                graph.edges.append(Edge(source_id, target_id, source_port_index, target_port_index))
         return graph
 
     # ── Ejecución ──────────────────────────────────────────

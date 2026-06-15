@@ -65,7 +65,8 @@ class NodeCanvas(QGraphicsView):
         self._node_items[node.node_id] = item
         return item
 
-    def add_edge(self, source_id: str, target_id: str, source_port_index: int = 0, target_port_index: int = 0):
+    def add_edge(self, source_id: str, target_id: str,
+                 source_port_index: int = 0, target_port_index: int = 0):
         source_item = self._node_items.get(source_id)
         target_item = self._node_items.get(target_id)
         if source_item is None or target_item is None:
